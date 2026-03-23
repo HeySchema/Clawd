@@ -1,0 +1,14 @@
+{
+  "version": "1.0.0",
+  "plugins": [
+    {
+      "name": "my-plugin",
+      "version": "0.1.0",
+      "description": "Custom plugin for project-specific Claude Code extensions",
+      "entry": "my-plugin/index.js",
+      "enabled": true,
+      "hooks": ["PreToolUse", "PostToolUse"],
+      "permissions": []
+    }
+  ]
+}

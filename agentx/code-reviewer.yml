@@ -1,0 +1,42 @@
+name: code-reviewer
+description: >
+  Autonomous agent that reviews code changes, checks for security issues,
+  enforces project conventions, and posts a structured review report.
+
+model: claude-sonnet-4-6
+
+tools:
+  - Read
+  - Glob
+  - Grep
+  - Bash
+
+skills:
+  - code-review
+
+triggers:
+  - on: pull_request
+    events: [opened, synchronize]
+  - on: manual
+    command: /review
+
+steps:
+  - name: gather-diff
+    action: bash
+    command: git diff origin/main...HEAD --name-only
+
+  - name: read-changed-files
+    action: read
+    files: "{{ steps.gather-diff.output }}"
+
+  - name: run-review
+    action: skill
+    skill: code-review
+    input: "{{ steps.read-changed-files.output }}"
+
+  - name: report
+    action: output
+    format: markdown
+
+env:
+  REVIEW_SEVERITY_THRESHOLD: warning

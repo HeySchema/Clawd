@@ -1,0 +1,49 @@
+name: security-auditor
+description: >
+  Autonomous agent that performs a full security audit of the codebase,
+  checks dependencies, and produces a risk-rated report.
+
+model: claude-sonnet-4-6
+
+tools:
+  - Read
+  - Glob
+  - Grep
+  - Bash
+
+skills:
+  - security-audit
+
+triggers:
+  - on: schedule
+    cron: "0 6 * * 1"   # Every Monday at 06:00 UTC
+  - on: manual
+    command: /security-audit
+
+steps:
+  - name: dep-audit
+    action: bash
+    command: npm audit --json
+
+  - name: scan-secrets
+    action: bash
+    command: grep -rn "password\|secret\|api_key\|token" src/ --include="*.ts" --include="*.tsx" | grep -v ".env" | grep -v "// " || true
+
+  - name: read-src
+    action: glob
+    pattern: "src/**/*.{ts,tsx}"
+
+  - name: run-audit
+    action: skill
+    skill: security-audit
+    input:
+      dep_audit: "{{ steps.dep-audit.output }}"
+      secret_scan: "{{ steps.scan-secrets.output }}"
+      source_files: "{{ steps.read-src.output }}"
+
+  - name: report
+    action: output
+    format: markdown
+
+env:
+  AUDIT_FAIL_ON: high

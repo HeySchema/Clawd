@@ -1,0 +1,45 @@
+name: test-writer
+description: >
+  Autonomous agent that analyzes source files and generates missing unit,
+  integration, or E2E tests to bring coverage above the 80% threshold.
+
+model: claude-sonnet-4-6
+
+tools:
+  - Read
+  - Write
+  - Glob
+  - Grep
+  - Bash
+
+triggers:
+  - on: manual
+    command: /write-tests
+
+steps:
+  - name: find-untested
+    action: bash
+    command: npm run test:coverage -- --json | jq '[.[] | select(.lines.pct < 80)]'
+
+  - name: read-source
+    action: read
+    files: "{{ steps.find-untested.output }}"
+
+  - name: generate-tests
+    action: llm
+    prompt: |
+      Given the following source code, generate comprehensive tests.
+      Follow the project's testing patterns (co-located *.test.ts files,
+      vitest/jest syntax, AAA pattern: Arrange, Act, Assert).
+      Input: {{ steps.read-source.output }}
+
+  - name: write-test-files
+    action: write
+    files: "{{ steps.generate-tests.output }}"
+
+  - name: verify
+    action: bash
+    command: npm run test:unit
+
+env:
+  COVERAGE_THRESHOLD: "80"

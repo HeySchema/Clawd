@@ -1,0 +1,62 @@
+name: devops-sre
+description: >
+  Autonomous SRE agent that monitors deployments, checks service health,
+  manages rollbacks, and assists with infrastructure tasks.
+
+model: claude-sonnet-4-6
+
+tools:
+  - Read
+  - Bash
+  - Glob
+
+triggers:
+  - on: deployment
+    events: [completed, failed]
+  - on: manual
+    command: /deploy
+
+steps:
+  - name: pre-flight
+    action: bash
+    command: |
+      npm run lint && \
+      npm run typecheck && \
+      npm test && \
+      npm audit --audit-level=high
+
+  - name: build
+    action: bash
+    command: npm run build
+
+  - name: migrate
+    action: bash
+    command: npx prisma migrate deploy
+
+  - name: health-check
+    action: bash
+    command: |
+      curl -sf "${HEALTH_CHECK_URL}" || exit 1
+
+  - name: smoke-test
+    action: bash
+    command: npm run test:e2e -- --env production
+
+  - name: tag-release
+    action: bash
+    command: |
+      VERSION=$(node -p "require('./package.json').version")
+      git tag "v${VERSION}" && git push origin "v${VERSION}"
+
+  - name: rollback-on-failure
+    action: bash
+    on_failure: true
+    command: |
+      echo "Deployment failed — initiating rollback..."
+      git revert HEAD --no-edit
+      npm run build
+      npx prisma migrate deploy
+
+env:
+  HEALTH_CHECK_URL: "${NEXT_PUBLIC_APP_URL}/api/health"
+  DEPLOY_ENV: production
